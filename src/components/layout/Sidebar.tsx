@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
+import { LogoutButton } from './LogoutButton'
 
 const navigation = [
   {
@@ -179,10 +180,7 @@ export default function Sidebar() {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-600">
-                <LogOut className="mr-2 h-4 w-4" />
-                Logout
-              </DropdownMenuItem>
+              <LogoutButton />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

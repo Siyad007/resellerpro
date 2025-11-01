@@ -1,17 +1,20 @@
+import { getProducts } from './actions'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Plus, Search, Filter, Package, TrendingUp, DollarSign } from 'lucide-react'
 import Link from 'next/link'
-import Image from 'next/image'
+import { ProductCard } from '@/components/ui/product-card'
 
 export const metadata = {
   title: 'Products - ResellerPro',
   description: 'Manage your products',
 }
 
-export default function ProductsPage() {
+export default async function ProductsPage() {
+  const { products, stats } = await getProducts()
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -30,38 +33,9 @@ export default function ProductsPage() {
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">156</div>
-            <p className="text-xs text-muted-foreground">+12 from last month</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">₹2,45,000</div>
-            <p className="text-xs text-muted-foreground">Inventory value</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Avg. Profit Margin</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">54%</div>
-            <p className="text-xs text-muted-foreground text-green-600">+3% from last month</p>
-          </CardContent>
-        </Card>
+        <StatCard title="Total Products" icon={Package} value={stats.total} subtitle="+12 from last month" />
+        <StatCard title="Total Value" icon={DollarSign} value={`₹${stats.value.toLocaleString()}`} subtitle="Inventory value" />
+        <StatCard title="Avg. Profit Margin" icon={TrendingUp} value={`${stats.avgMargin}%`} subtitle="Compared to last month" />
       </div>
 
       {/* Search & Filter */}
@@ -78,117 +52,37 @@ export default function ProductsPage() {
 
       {/* Products Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        <ProductCard
-          name="Wireless Earbuds"
-          image="/placeholder-product.png"
-          cost={600}
-          price={1299}
-          profit={699}
-          stock="in_stock"
-        />
-        <ProductCard
-          name="Phone Case (Black)"
-          image="/placeholder-product.png"
-          cost={150}
-          price={399}
-          profit={249}
-          stock="in_stock"
-        />
-        <ProductCard
-          name="LED Strip Lights"
-          image="/placeholder-product.png"
-          cost={400}
-          price={899}
-          profit={499}
-          stock="low_stock"
-        />
-        <ProductCard
-          name="Power Bank 20000mAh"
-          image="/placeholder-product.png"
-          cost={1200}
-          price={2499}
-          profit={1299}
-          stock="in_stock"
-        />
-        <ProductCard
-          name="Bluetooth Speaker"
-          image="/placeholder-product.png"
-          cost={800}
-          price={1699}
-          profit={899}
-          stock="in_stock"
-        />
-        <ProductCard
-          name="Phone Ring Holder"
-          image="/placeholder-product.png"
-          cost={50}
-          price={199}
-          profit={149}
-          stock="out_of_stock"
-        />
+        {products.length > 0 ? (
+          products.map((product) => (
+            <ProductCard
+              id={product.id}
+              key={product.id}
+              name={product.name}
+              image={product.image_url || '/placeholder-product.png'}
+              cost={product.cost_price}
+              price={product.selling_price}
+              profit={product.selling_price - product.cost_price}
+              stock={product.stock_status}
+            />
+          ))
+        ) : (
+          <p className="text-muted-foreground">No products found.</p>
+        )}
       </div>
     </div>
   )
 }
 
-function ProductCard({
-  name,
-  image,
-  cost,
-  price,
-  profit,
-  stock,
-}: {
-  name: string
-  image: string
-  cost: number
-  price: number
-  profit: number
-  stock: 'in_stock' | 'low_stock' | 'out_of_stock'
-}) {
-  const stockConfig = {
-    in_stock: { label: 'In Stock', color: 'bg-green-500' },
-    low_stock: { label: 'Low Stock', color: 'bg-yellow-500' },
-    out_of_stock: { label: 'Out of Stock', color: 'bg-red-500' },
-  }
-
-  const profitMargin = ((profit / price) * 100).toFixed(1)
-
+function StatCard({ title, icon: Icon, value, subtitle }: any) {
   return (
-    <Card className="overflow-hidden group hover:shadow-lg transition-shadow cursor-pointer">
-      <div className="aspect-square relative bg-muted">
-        <div className="absolute top-2 right-2 z-10">
-          <Badge className={`${stockConfig[stock].color} text-white border-0`}>
-            {stockConfig[stock].label}
-          </Badge>
-        </div>
-        <div className="w-full h-full flex items-center justify-center">
-          <Package className="h-20 w-20 text-muted-foreground/20" />
-        </div>
-      </div>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base line-clamp-2">{name}</CardTitle>
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <div>
-            <p className="text-xs text-muted-foreground">Cost</p>
-            <p className="font-medium">₹{cost}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Price</p>
-            <p className="font-medium">₹{price}</p>
-          </div>
-        </div>
-        <div className="pt-3 border-t">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground">Profit</p>
-              <p className="font-bold text-green-600">₹{profit}</p>
-            </div>
-            <Badge variant="secondary">{profitMargin}%</Badge>
-          </div>
-        </div>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+        <p className="text-xs text-muted-foreground">{subtitle}</p>
       </CardContent>
     </Card>
   )
