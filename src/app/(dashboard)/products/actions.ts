@@ -93,19 +93,30 @@ export async function createProduct(
 }
 
 // get all products
-export async function getProducts() {
+export async function getProducts(search?: string, category?: string) {
   const supabase = await createClient()
 
-  // Get the logged-in user
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { products: [], stats: { total: 0, value: 0, avgMargin: 0 } }
 
-  // Fetch products
-  const { data: products, error } = await supabase
+  // Base query
+  let query = supabase
     .from('products')
     .select('*')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
+
+  // Only apply search if not empty
+  if (search && search.trim().length > 0) {
+    query = query.ilike('name', `%${search.trim()}%`)
+  }
+
+  // Only apply category if not "all" or empty
+  if (category && category !== 'all' && category.trim().length > 0) {
+    query = query.eq('category', category)
+  }
+
+  const { data: products, error } = await query
 
   if (error) {
     console.error('Error fetching products:', error)
@@ -136,7 +147,7 @@ export async function getProducts() {
 }
 
 
-// --- Update Product ---
+
 // --- Update Product ---
 export async function updateProduct(
   prevState: FormState,
