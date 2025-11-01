@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
-import { revalidatePath as nextRevalidatePath } from 'next/cache'
+import { revalidatePath } from 'next/cache'
 
 const LoginSchema = z.object({
   email: z.string().email({ message: 'Please enter a valid email address.' }),
@@ -21,9 +21,6 @@ export async function login(
   formData: FormData
 ): Promise<LoginFormState> {
   const supabase = await createClient()
-
-  // Debugging log to confirm environment variables are loaded
-  console.log('Server Action: SUPABASE_URL is', process.env.SUPABASE_URL ? 'loaded' : 'MISSING');
 
   const validatedFields = LoginSchema.safeParse({
     email: formData.get('email'),
@@ -49,12 +46,9 @@ export async function login(
     if (error.message === 'Invalid login credentials') {
       return { success: false, message: 'Incorrect email or password. Please try again.' }
     }
-    // For any other error
     return { success: false, message: `An error occurred: ${error.message}` }
   }
 
-  // On success, invalidate path and redirect
-  nextRevalidatePath('/')
+  revalidatePath('/')
   redirect('/dashboard')
-  return { success: true, message: 'Logged in.' }
 }

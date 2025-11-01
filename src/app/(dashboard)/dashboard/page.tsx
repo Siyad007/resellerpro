@@ -80,6 +80,7 @@ export default function DashboardPage() {
                 <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>Chart will be rendered here</p>
                 <p className="text-sm">(Using Recharts library)</p>
+                
               </div>
             </div>
           </CardContent>

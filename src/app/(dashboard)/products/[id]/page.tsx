@@ -1,11 +1,29 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+export const dynamic = 'force-dynamic'
+
+import { createClient } from '@/lib/supabase/server'
+import { notFound } from 'next/navigation'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, Edit, BarChart, DollarSign, Package } from 'lucide-react'
+import { ArrowLeft, Edit, Package } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 
-export default function ProductDetailsPage({ params }: { params: { id: string } }) {
+export default async function ProductDetailsPage(props: { params: Promise<{ id: string }> }) {
+  const { id } = await props.params 
+
+  const supabase = await createClient()
+  const { data: product, error } = await supabase
+    .from('products')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (error || !product) return notFound()
+
+  const profit = product.selling_price - product.cost_price
+  const profitMargin = ((profit / product.selling_price) * 100).toFixed(1)
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-4">
@@ -15,43 +33,59 @@ export default function ProductDetailsPage({ params }: { params: { id: string } 
           </Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Wireless Earbuds</h1>
-          <p className="text-muted-foreground">Product ID: {params.id}</p>
+          <h1 className="text-2xl font-bold tracking-tight">{product.name}</h1>
+          <p className="text-muted-foreground">Product ID: {id}</p>
         </div>
       </div>
-      
+
       <Card>
         <CardContent className="p-6 grid md:grid-cols-2 gap-6">
-          <div className="aspect-square bg-muted rounded-lg flex items-center justify-center">
-            <Package className="h-32 w-32 text-muted-foreground/20" />
-          </div>
+          {product.image_url ? (
+            <div className="relative aspect-square rounded-lg overflow-hidden">
+              <Image src={product.image_url} alt={product.name} fill className="object-cover" />
+            </div>
+          ) : (
+            <div className="aspect-square bg-muted rounded-lg flex items-center justify-center">
+              <Package className="h-32 w-32 text-muted-foreground/20" />
+            </div>
+          )}
+
           <div className="space-y-4">
-            <Badge>Electronics</Badge>
-            <h2 className="text-3xl font-bold">Wireless Earbuds</h2>
-            <p className="text-muted-foreground">
-              Premium Bluetooth 5.0 wireless earbuds with superior sound quality, active noise cancellation, and 20-hour battery life.
-            </p>
+            <Badge>{product.category || 'Uncategorized'}</Badge>
+            <p className="text-muted-foreground">{product.description}</p>
+
             <div className="grid grid-cols-2 gap-4 pt-4 border-t">
               <div>
                 <p className="text-sm text-muted-foreground">Cost Price</p>
-                <p className="text-lg font-semibold">₹600</p>
+                <p className="text-lg font-semibold">₹{product.cost_price}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Selling Price</p>
-                <p className="text-lg font-semibold text-primary">₹1,299</p>
+                <p className="text-lg font-semibold text-primary">₹{product.selling_price}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Profit</p>
-                <p className="text-lg font-semibold text-green-600">₹699</p>
+                <p className="text-lg font-semibold text-green-600">₹{profit}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Stock Status</p>
-                <Badge className="bg-green-500 text-white">In Stock</Badge>
+                <Badge
+                  className={
+                    product.stock_status === 'in_stock'
+                      ? 'bg-green-500 text-white'
+                      : product.stock_status === 'low_stock'
+                      ? 'bg-yellow-500 text-white'
+                      : 'bg-red-500 text-white'
+                  }
+                >
+                  {product.stock_status.replace('_', ' ')}
+                </Badge>
               </div>
             </div>
+
             <div className="pt-4 border-t">
               <Button className="w-full" asChild>
-                <Link href={`/products/${params.id}/edit`}>
+                <Link href={`/products/${id}/edit`}>
                   <Edit className="mr-2 h-4 w-4" /> Edit Product
                 </Link>
               </Button>
@@ -59,27 +93,6 @@ export default function ProductDetailsPage({ params }: { params: { id: string } 
           </div>
         </CardContent>
       </Card>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><BarChart className="h-5 w-5"/>Sales Analytics</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatItem title="Units Sold" value="45" />
-          <StatItem title="Total Revenue" value="₹58,455" />
-          <StatItem title="Total Profit" value="₹31,455" />
-          <StatItem title="Avg. Profit Margin" value="53.8%" />
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
-function StatItem({ title, value }: { title: string, value: string }) {
-  return (
-    <div className="p-4 bg-muted/50 rounded-lg">
-      <p className="text-sm text-muted-foreground">{title}</p>
-      <p className="text-2xl font-bold">{value}</p>
     </div>
   )
 }

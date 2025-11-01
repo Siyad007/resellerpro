@@ -1,3 +1,8 @@
+'use client'
+
+import { useState } from 'react'
+import { useFormState } from 'react-dom'
+import { createProduct } from '../actions' // ✅ adjust path as needed
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -8,6 +13,20 @@ import { ArrowLeft, Save, Upload } from 'lucide-react'
 import Link from 'next/link'
 
 export default function NewProductPage() {
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [state, formAction] = useFormState(createProduct, {
+    success: false,
+    message: '',
+  })
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const previewUrl = URL.createObjectURL(file)
+      setImagePreview(previewUrl)
+    }
+  }
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-4">
@@ -22,51 +41,62 @@ export default function NewProductPage() {
         </div>
       </div>
 
-      <form>
+      <form action={formAction} className="space-y-6" encType="multipart/form-data">
         <Card>
           <CardHeader>
             <CardTitle>Product Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
+            
             <div className="space-y-2">
               <Label htmlFor="name">Product Name</Label>
-              <Input id="name" placeholder="e.g., Wireless Earbuds" />
+              <Input id="name" name="name" placeholder="e.g., Wireless Earbuds" required />
             </div>
 
             <div className="space-y-2">
               <Label>Product Image</Label>
-              <div className="flex items-center justify-center w-full">
-                <Label htmlFor="dropzone-file" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted">
+              <div className="flex items-center justify-center w-full relative">
+                <Label
+                  htmlFor="image"
+                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted transition"
+                >
                   <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                    <Upload className="w-8 h-8 mb-4 text-muted-foreground" />
-                    <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">Click to upload</span> or drag and drop</p>
-                    <p className="text-xs text-muted-foreground">PNG, JPG or GIF (MAX. 800x400px)</p>
+                    <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-semibold">Click to upload</span> or drag and drop
+                    </p>
                   </div>
-                  <Input id="dropzone-file" type="file" className="hidden" />
+                  <Input id="image" name="image" type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
                 </Label>
+
+                {imagePreview && (
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    className="absolute top-2 right-2 h-20 w-20 object-cover rounded-md border"
+                  />
+                )}
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="cost">Cost Price (₹)</Label>
-                <Input id="cost" type="number" placeholder="What you pay" />
+                <Label htmlFor="cost_price">Cost Price (₹)</Label>
+                <Input id="cost_price" name="cost_price" type="number" step="0.01" placeholder="What you pay" required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="price">Selling Price (₹)</Label>
-                <Input id="price" type="number" placeholder="What customer pays" />
+                <Label htmlFor="selling_price">Selling Price (₹)</Label>
+                <Input id="selling_price" name="selling_price" type="number" step="0.01" placeholder="What customer pays" required />
               </div>
-            </div>
-            
-            <div className="p-4 bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500 rounded-r-lg">
-              <p className="text-sm font-medium text-green-800 dark:text-green-300">Estimated Profit: ₹699 (53.8% Margin)</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Category</Label>
-                <Select>
-                  <SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger>
+                <Select name="category">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="electronics">Electronics</SelectItem>
                     <SelectItem value="fashion">Fashion</SelectItem>
@@ -74,10 +104,13 @@ export default function NewProductPage() {
                   </SelectContent>
                 </Select>
               </div>
+
               <div className="space-y-2">
                 <Label>Stock Status</Label>
-                <Select>
-                  <SelectTrigger><SelectValue placeholder="Select stock status" /></SelectTrigger>
+                <Select name="stock_status" defaultValue="in_stock">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select stock status" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="in_stock">In Stock</SelectItem>
                     <SelectItem value="low_stock">Low Stock</SelectItem>
@@ -86,10 +119,10 @@ export default function NewProductPage() {
                 </Select>
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
-              <Textarea id="description" placeholder="Describe your product..." />
+              <Textarea id="description" name="description" placeholder="Describe your product..." />
             </div>
 
             <div className="flex justify-end gap-2 pt-4">
@@ -101,6 +134,16 @@ export default function NewProductPage() {
                 Save Product
               </Button>
             </div>
+
+            {state.message && (
+              <p
+                className={`text-sm mt-2 ${
+                  state.success ? 'text-green-600' : 'text-red-600'
+                }`}
+              >
+                {state.message}
+              </p>
+            )}
           </CardContent>
         </Card>
       </form>
