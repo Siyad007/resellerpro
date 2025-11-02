@@ -39,6 +39,7 @@ export default async function NewOrderPage({
     .eq('user_id', user.id)
     .neq('stock_status', 'out_of_stock') // Only exclude out of stock
     .order('name')
+      console.log("prodicuts------1",products);
 
   // Alternative: Show ALL products including out of stock
   // const { data: products } = await supabase
