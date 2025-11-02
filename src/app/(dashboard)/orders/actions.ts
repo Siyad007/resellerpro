@@ -2,48 +2,11 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { z } from 'zod'
 
 // ========================================================
-// 1. Zod Schemas for Data Validation
+// SERVER ACTION: CREATE A NEW ORDER
 // ========================================================
-
-// Schema for creating a new order
-const CreateOrderSchema = z.object({
-  customerId: z.string().uuid({ message: 'A valid customer must be selected.' }),
-  items: z.string().min(1, { message: 'Order must have at least one item.' }),
-  paymentStatus: z.enum(['pending', 'paid', 'cod']),
-  paymentMethod: z.string().optional(),
-  discount: z.coerce.number().min(0).default(0),
-  shippingCost: z.coerce.number().min(0).default(0),
-  notes: z.string().optional(),
-})
-
-// Schema for updating an order's status
-const UpdateStatusSchema = z.object({
-  orderId: z.string().uuid(),
-  status: z.enum(['pending', 'processing', 'shipped', 'delivered', 'cancelled']),
-})
-
-// ========================================================
-// 2. Type Definition for Form State
-// ========================================================
-
-export type OrderFormState = {
-  success: boolean
-  message: string
-  errors?: Record<string, string[] | undefined>
-  orderId?: string
-  orderNumber?: number
-}
-
-// ========================================================
-// 3. SERVER ACTION: CREATE A NEW ORDER
-// ========================================================
-export async function createOrder(
-  prevState: OrderFormState,
-  formData: FormData
-): Promise<OrderFormState> {
+export async function createOrder(p0: { success: boolean; message: string }, formData: FormData) {
   const supabase = await createClient()
 
   // Authenticate user
@@ -52,80 +15,124 @@ export async function createOrder(
     return { success: false, message: 'Authentication required.' }
   }
 
-  // Validate form data
-  const validatedFields = CreateOrderSchema.safeParse({
-    customerId: formData.get('customerId'),
-    items: formData.get('items'),
-    paymentStatus: formData.get('paymentStatus'),
-    paymentMethod: formData.get('paymentMethod'),
-    discount: formData.get('discount'),
-    shippingCost: formData.get('shippingCost'),
-    notes: formData.get('notes'),
-  })
-
-  if (!validatedFields.success) {
-    return {
-      success: false,
-      message: 'Invalid data. Please check your inputs.',
-      errors: validatedFields.error.flatten().fieldErrors,
-    }
-  }
-
-  const { customerId, items: itemsJson, paymentStatus, paymentMethod, discount, shippingCost, notes } = validatedFields.data
-  
-  let items
   try {
-    items = JSON.parse(itemsJson)
-  } catch (error) {
-    return { success: false, message: 'Invalid items data.' }
-  }
+    // Extract form data
+    const customerId = formData.get('customerId') as string
+    const itemsJson = formData.get('items') as string
+    const paymentStatus = formData.get('paymentStatus') as string
+    const paymentMethod = formData.get('paymentMethod') as string
+    const discount = parseFloat(formData.get('discount') as string) || 0
+    const shippingCost = parseFloat(formData.get('shippingCost') as string) || 0
+    const notes = formData.get('notes') as string || ''
+    const subtotal = parseFloat(formData.get('subtotal') as string)
+    const totalAmount = parseFloat(formData.get('totalAmount') as string)
+    const totalCost = parseFloat(formData.get('totalCost') as string)
 
-  try {
-    // Calculate totals on the server for security
-    let subtotal = 0
-    let totalCost = 0
-    for (const item of items) {
-      subtotal += item.unitPrice * item.quantity
-      totalCost += item.unitCost * item.quantity
+    // Debug logs
+    console.log('📝 Order Data:', {
+      customerId,
+      paymentStatus,
+      paymentMethod,
+      discount,
+      shippingCost,
+      subtotal,
+      totalAmount,
+      totalCost,
+      itemsCount: itemsJson ? JSON.parse(itemsJson).length : 0
+    })
+
+    // Validation
+    if (!customerId) {
+      return { success: false, message: 'Please select a customer' }
     }
-    const totalAmount = subtotal + shippingCost - discount
 
-    // --- Database Transaction ---
+    if (!itemsJson) {
+      return { success: false, message: 'Please add at least one product' }
+    }
+
+    let items
+    try {
+      items = JSON.parse(itemsJson)
+    } catch (e) {
+      return { success: false, message: 'Invalid items data' }
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return { success: false, message: 'Please add at least one product' }
+    }
+
+    if (!paymentStatus) {
+      return { success: false, message: 'Please select payment status' }
+    }
+
+    if (isNaN(subtotal) || isNaN(totalAmount) || isNaN(totalCost)) {
+      return { success: false, message: 'Invalid pricing data' }
+    }
+
     // Create the main order record
     const { data: newOrder, error: orderError } = await supabase
       .from('orders')
       .insert({
         user_id: user.id,
         customer_id: customerId,
-        subtotal,
-        delivery_charge: shippingCost,
-        discount,
+        subtotal: subtotal,
+        discount: discount,
+        shipping_cost: shippingCost,
         total_amount: totalAmount,
         total_cost: totalCost,
         payment_status: paymentStatus,
-        payment_method: paymentMethod,
-        notes: notes,
+        payment_method: paymentMethod || null,
+        notes: notes || null,
       })
       .select('id, order_number')
       .single()
 
-    if (orderError) throw orderError
-    if (!newOrder) throw new Error('Failed to create order record.')
+    if (orderError) {
+      console.error('❌ Order creation error:', orderError)
+      return { 
+        success: false, 
+        message: `Database error: ${orderError.message}` 
+      }
+    }
 
-    // Prepare and insert the items linked to the new order
+    if (!newOrder) {
+      return { success: false, message: 'Failed to create order' }
+    }
+
+    console.log('✅ Order created:', newOrder)
+
+    // Prepare order items
     const orderItemsData = items.map((item: any) => ({
       order_id: newOrder.id,
       product_id: item.productId,
       product_name: item.productName,
       quantity: item.quantity,
-      unit_price: item.unitPrice,
-      unit_cost: item.unitCost,
+      unit_selling_price: item.unitPrice,
+      unit_cost_price: item.unitCost,
     }))
 
-    const { error: itemsError } = await supabase.from('order_items').insert(orderItemsData)
-    if (itemsError) throw itemsError
+    console.log('📦 Creating order items:', orderItemsData.length)
 
-    // --- Success ---
+    // Insert order items
+    const { error: itemsError } = await supabase
+      .from('order_items')
+      .insert(orderItemsData)
+
+    if (itemsError) {
+      console.error('❌ Order items error:', itemsError)
+      
+      // Rollback: Delete the order
+      await supabase.from('orders').delete().eq('id', newOrder.id)
+      
+      return { 
+        success: false, 
+        message: `Failed to add items: ${itemsError.message}` 
+      }
+    }
+
+    console.log('✅ Order items created')
+
+    // Revalidate pages
     revalidatePath('/orders')
     revalidatePath('/dashboard')
 
@@ -136,150 +143,74 @@ export async function createOrder(
       orderNumber: newOrder.order_number,
     }
   } catch (error: any) {
-    console.error('Order creation error:', error)
-    return { success: false, message: `Database Error: ${error.message}` }
+    console.error('❌ Unexpected error:', error)
+    return { 
+      success: false, 
+      message: `Error: ${error.message || 'Something went wrong'}` 
+    }
   }
 }
-
-// ========================================================
-// 4. SERVER ACTION: UPDATE ORDER STATUS
-// ========================================================
-export async function updateOrderStatus(
-  prevState: OrderFormState,
-  formData: FormData
-): Promise<OrderFormState> {
+export async function updateOrderStatus(formData: FormData) {
   const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Authentication required.' }
-
-  const validatedFields = UpdateStatusSchema.safeParse({
-    orderId: formData.get('orderId'),
-    status: formData.get('status'),
-  })
-
-  if (!validatedFields.success) {
-    return { success: false, message: 'Invalid data.' }
+  if (!user) {
+    return { success: false, message: 'Authentication required.' }
   }
 
-  const { orderId, status } = validatedFields.data
-
   try {
+    const orderId = formData.get('orderId') as string
+    const status = formData.get('status') as string
+    const courierService = formData.get('courierService') as string
+    const trackingNumber = formData.get('trackingNumber') as string
+
+    if (!orderId || !status) {
+      return { success: false, message: 'Invalid data.' }
+    }
+
+    // Prepare update data
+    const updateData: any = {
+      status: status,
+      updated_at: new Date().toISOString(),
+    }
+
+    // Add delivery timestamp if status is delivered
+    if (status === 'delivered') {
+      updateData.delivered_at = new Date().toISOString()
+    }
+
+    // Add tracking info if provided
+    if (courierService) {
+      updateData.courier_service = courierService
+    }
+    if (trackingNumber) {
+      updateData.tracking_number = trackingNumber
+    }
+
     const { error } = await supabase
       .from('orders')
-      .update({ status: status })
+      .update(updateData)
       .eq('id', orderId)
       .eq('user_id', user.id)
 
-    if (error) throw error
+    if (error) {
+      console.error('Error updating order status:', error)
+      return { success: false, message: error.message }
+    }
 
     revalidatePath('/orders')
     revalidatePath(`/orders/${orderId}`)
 
-    return { success: true, message: `Order status updated to "${status}".` }
+    return { 
+      success: true, 
+      message: `Order status updated to "${status}".` 
+    }
   } catch (error: any) {
-    return { success: false, message: error.message }
+    console.error('Error updating order status:', error)
+    return { 
+      success: false, 
+      message: error.message || 'Failed to update status' 
+    }
   }
+
 }
-
-// ========================================================
-// 5. DATA FETCHING FUNCTIONS (for use in Server Components)
-// ========================================================
-
-export async function getOrders(filters: { status?: string } = {}) {
-  const supabase = await createClient()
-  
-  // ✅ Check authentication
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
-
-  let query = supabase
-    .from('orders')
-    .select(`
-      *,
-      customers (
-        id,
-        name,
-        phone
-      )
-    `)
-    .eq('user_id', user.id) // ✅ Important: Filter by user
-    .order('created_at', { ascending: false })
-    .limit(50)
-  
-  // Apply status filter if provided
-  if (filters.status && filters.status !== 'all') {
-    query = query.eq('status', filters.status)
-  }
-
-  const { data, error } = await query
-  
-  if (error) {
-    console.error('Error fetching orders:', error.message)
-    return []
-  }
-  
-  return data || []
-}
-
-export async function getOrderDetails(orderId: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
-  const { data, error } = await supabase
-    .from('orders')
-    .select(`
-      *,
-      customers (*),
-      order_items (*)
-    `)
-    .eq('id', orderId)
-    .eq('user_id', user.id) // ✅ Security: Only fetch user's own orders
-    .single()
-
-  if (error) {
-    console.error('Error fetching order details:', error.message)
-    return null
-  }
-  return data
-}
-
-// Get all customers (for order form)
-export async function getCustomersForOrder() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
-
-  const { data, error } = await supabase
-    .from('customers')
-    .select('id, name, phone')
-    .eq('user_id', user.id)
-    .order('name')
-
-  if (error) {
-    console.error('Error fetching customers:', error)
-    return []
-  }
-  return data || []
-}
-
-// Get all products (for order form)
-export async function getProductsForOrder() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
-
-  const { data, error } = await supabase
-    .from('products')
-    .select('id, name, selling_price, cost_price, stock_status')
-    .eq('user_id', user.id)
-    .order('name')
-
-  if (error) {
-    console.error('Error fetching products:', error)
-    return []
-  }
-  return data || []
-}
-

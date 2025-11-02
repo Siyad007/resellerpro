@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useActionState } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,7 +17,8 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2, Save, Loader2, Package } from 'lucide-react'
-import { createOrder, OrderFormState } from '@/app/(dashboard)/orders/actions'
+// Update the import path to the correct location of your server action
+import { createOrder } from '@/app/(dashboard)/orders/actions' // ✅ Import server action
 
 type Customer = {
   id: string
@@ -51,38 +52,15 @@ export function NewOrderForm({
 }) {
   const router = useRouter()
   const { toast } = useToast()
-
-  const initialState: OrderFormState = {
-    success: false,
-    message: '',
-  }
-
-  const [state, formAction, isPending] = useActionState(createOrder, initialState)
+  const [isPending, startTransition] = useTransition()
 
   const [selectedCustomerId, setSelectedCustomerId] = useState('')
   const [orderItems, setOrderItems] = useState<OrderItem[]>([])
-  const [paymentStatus, setPaymentStatus] = useState('pending')
+  const [paymentStatus, setPaymentStatus] = useState('unpaid')
   const [paymentMethod, setPaymentMethod] = useState('')
   const [discount, setDiscount] = useState(0)
   const [shippingCost, setShippingCost] = useState(0)
   const [notes, setNotes] = useState('')
-
-  // Handle success/error
-  useEffect(() => {
-    if (state.success && state.orderId) {
-      toast({
-        title: 'Order Created! ✅',
-        description: state.message,
-      })
-      router.push(`/orders/${state.orderId}`)
-    } else if (state.message && !state.success) {
-      toast({
-        title: 'Error',
-        description: state.message,
-        variant: 'destructive',
-      })
-    }
-  }, [state, router, toast])
 
   // Add product to order
   const handleAddProduct = (productId: string) => {
@@ -111,7 +89,6 @@ export function NewOrderForm({
     setOrderItems([...orderItems, newItem])
   }
 
-  // Update item quantity
   const handleUpdateQuantity = (itemId: string, quantity: number) => {
     if (quantity < 1) return
     setOrderItems(
@@ -121,7 +98,6 @@ export function NewOrderForm({
     )
   }
 
-  // Update item price
   const handleUpdatePrice = (itemId: string, price: number) => {
     if (price < 0) return
     setOrderItems(
@@ -131,7 +107,6 @@ export function NewOrderForm({
     )
   }
 
-  // Remove item
   const handleRemoveItem = (itemId: string) => {
     setOrderItems(orderItems.filter((item) => item.id !== itemId))
   }
@@ -148,10 +123,11 @@ export function NewOrderForm({
   const total = subtotal + shippingCost - discount
   const profit = total - totalCost
 
-  // Validate before submit
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  // ✅ FIXED Submit handler with Server Action
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
     if (!selectedCustomerId) {
-      e.preventDefault()
       toast({
         title: 'Error',
         description: 'Please select a customer',
@@ -161,7 +137,6 @@ export function NewOrderForm({
     }
 
     if (orderItems.length === 0) {
-      e.preventDefault()
       toast({
         title: 'Error',
         description: 'Please add at least one product',
@@ -169,19 +144,41 @@ export function NewOrderForm({
       })
       return
     }
+
+    startTransition(async () => {
+      const formData = new FormData()
+      formData.append('customerId', selectedCustomerId)
+      formData.append('items', JSON.stringify(orderItems))
+      formData.append('paymentStatus', paymentStatus)
+      formData.append('paymentMethod', paymentMethod)
+      formData.append('discount', discount.toString())
+      formData.append('shippingCost', shippingCost.toString())
+      formData.append('notes', notes)
+      formData.append('subtotal', subtotal.toString())
+      formData.append('totalAmount', total.toString())
+      formData.append('totalCost', totalCost.toString())
+
+      const result = await createOrder({ success: false, message: '' }, formData)
+
+      if (result.success) {
+        toast({
+          title: 'Success',
+          description: result.message,
+        })
+        router.push(`/orders/${result.orderId}`)
+        router.refresh()
+      } else {
+        toast({
+          title: 'Error',
+          description: result.message,
+          variant: 'destructive',
+        })
+      }
+    })
   }
 
   return (
-    <form action={formAction} onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Hidden fields for server action */}
-      <input type="hidden" name="customerId" value={selectedCustomerId} />
-      <input type="hidden" name="items" value={JSON.stringify(orderItems)} />
-      <input type="hidden" name="paymentStatus" value={paymentStatus} />
-      <input type="hidden" name="paymentMethod" value={paymentMethod} />
-      <input type="hidden" name="discount" value={discount} />
-      <input type="hidden" name="shippingCost" value={shippingCost} />
-      <input type="hidden" name="notes" value={notes} />
-
+    <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 space-y-6">
         {/* Customer Selection */}
         <Card>
@@ -343,7 +340,7 @@ export function NewOrderForm({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="unpaid">Unpaid</SelectItem>
                     <SelectItem value="paid">Paid</SelectItem>
                     <SelectItem value="cod">Cash on Delivery</SelectItem>
                   </SelectContent>
