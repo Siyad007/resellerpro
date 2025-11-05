@@ -2,8 +2,6 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { canCreateOrder } from '../settings/subscription/actions'
-
 
 // Define allowed status transitions
 const STATUS_FLOW: Record<string, string[]> = {
@@ -14,6 +12,61 @@ const STATUS_FLOW: Record<string, string[]> = {
   cancelled: [], // Final state
 }
 
+// ========================================================
+// HELPER: Check if user can create order
+// ========================================================
+async function canCreateOrder() {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { allowed: false, reason: 'Not authenticated' }
+  }
+
+  // Get user's subscription
+  const { data: subscription } = await supabase
+    .from('user_subscriptions')
+    .select(`
+      *,
+      plan:subscription_plans(*)
+    `)
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .single()
+
+  if (!subscription) {
+    return { allowed: false, reason: 'No active subscription found' }
+  }
+
+  const orderLimit = subscription.plan?.order_limit
+
+  // If unlimited (null), allow
+  if (!orderLimit) {
+    return { allowed: true }
+  }
+
+  // Check current month usage
+  const periodStart = new Date()
+  periodStart.setDate(1)
+  periodStart.setHours(0, 0, 0, 0)
+
+  const { count: ordersThisMonth } = await supabase
+    .from('orders')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .gte('created_at', periodStart.toISOString())
+
+  const currentCount = ordersThisMonth || 0
+
+  if (currentCount >= orderLimit) {
+    return {
+      allowed: false,
+      reason: `You've reached your monthly limit of ${orderLimit} orders. Please upgrade your plan to continue.`,
+    }
+  }
+
+  return { allowed: true }
+}
 
 // ========================================================
 // SERVER ACTION: CREATE A NEW ORDER
@@ -22,21 +75,23 @@ export async function createOrder(
   prevState: { success: boolean; message: string },
   formData: FormData
 ) {
+  
   const supabase = await createClient()
 
   // Authenticate user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
+  
   if (!user) {
     return { success: false, message: 'Authentication required.' }
   }
 
-  const { allowed, reason } = await canCreateOrder()
-  if (!allowed) {
+  // Check subscription limits BEFORE creating order
+  const orderCheck = await canCreateOrder()
+  
+  if (!orderCheck.allowed) {
     return {
       success: false,
-      message: reason || 'Cannot create order. Please check your subscription.',
+      message: orderCheck.reason || 'Cannot create order. Please check your subscription.',
     }
   }
 
@@ -67,6 +122,7 @@ export async function createOrder(
     try {
       items = JSON.parse(itemsJson)
     } catch (e) {
+      console.error('❌ JSON parse error:', e)
       return { success: false, message: 'Invalid items data' }
     }
 
@@ -82,7 +138,8 @@ export async function createOrder(
       return { success: false, message: 'Invalid pricing data' }
     }
 
-    // Create the main order record
+
+    // INSERT ORDER - WITH .select().single() TO GET THE CREATED ORDER!
     const { data: newOrder, error: orderError } = await supabase
       .from('orders')
       .insert({
@@ -96,24 +153,24 @@ export async function createOrder(
         payment_status: paymentStatus,
         payment_method: paymentMethod || null,
         notes: notes || null,
-        status: 'pending', // Default status
+        status: 'pending',
       })
-      .select('id, order_number')
+      .select() 
       .single()
 
+
     if (orderError) {
-      console.error('❌ Order creation error:', orderError)
+      console.error('Order creation error:', JSON.stringify(orderError, null, 2))
       return {
         success: false,
-        message: `Database error: ${orderError.message}`,
+        message: `Database error: ${orderError.message || 'Unknown error'}`,
       }
     }
 
     if (!newOrder) {
-      return { success: false, message: 'Failed to create order' }
+      console.error(' No order returned from database')
+      return { success: false, message: 'Failed to create order - no data returned' }
     }
-
-
 
     // Prepare order items
     const orderItemsData = items.map((item: any) => ({
@@ -131,7 +188,7 @@ export async function createOrder(
       .insert(orderItemsData)
 
     if (itemsError) {
-      console.error('❌ Order items error:', itemsError)
+      console.error('Order items error:', JSON.stringify(itemsError, null, 2))
 
       // Rollback: Delete the order
       await supabase.from('orders').delete().eq('id', newOrder.id)
@@ -142,9 +199,12 @@ export async function createOrder(
       }
     }
 
+
     // Revalidate pages
     revalidatePath('/orders')
     revalidatePath('/dashboard')
+    revalidatePath('/settings/subscription')
+
 
     return {
       success: true,
@@ -153,7 +213,6 @@ export async function createOrder(
       orderNumber: newOrder.order_number,
     }
   } catch (error: any) {
-    console.error('❌ Unexpected error:', error)
     return {
       success: false,
       message: `Error: ${error.message || 'Something went wrong'}`,
@@ -167,9 +226,8 @@ export async function createOrder(
 export async function updateOrderStatus(formData: FormData) {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
+  
   if (!user) {
     return { success: false, message: 'Authentication required.' }
   }
@@ -261,10 +319,10 @@ export async function updateOrderStatus(formData: FormData) {
       })
 
     if (historyError) {
-      console.error('Error inserting status history:', historyError)
-      // Don't fail the update for this
+      console.error('⚠️ Error inserting status history:', historyError)
     }
 
+    // Revalidate pages
     revalidatePath('/orders')
     revalidatePath(`/orders/${orderId}`)
 
@@ -318,9 +376,8 @@ export async function getAllowedStatusTransitions(orderId: string) {
 export async function updatePaymentStatus(formData: FormData) {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
+  
   if (!user) {
     return { success: false, message: 'Authentication required.' }
   }
@@ -369,3 +426,50 @@ export async function updatePaymentStatus(formData: FormData) {
     }
   }
 }
+
+// ========================================================
+// SERVER ACTION: DELETE ORDER
+// ========================================================
+export async function deleteOrder(orderId: string) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    return { success: false, message: 'Authentication required.' }
+  }
+
+  try {
+
+    const { error } = await supabase
+      .from('orders')
+      .delete()
+      .eq('id', orderId)
+      .eq('user_id', user.id)
+
+    if (error) {
+      console.error('Error deleting order:', error)
+      return { success: false, message: error.message }
+    }
+
+    revalidatePath('/orders')
+    revalidatePath('/dashboard')
+    revalidatePath('/settings/subscription')
+
+    return {
+      success: true,
+      message: 'Order deleted successfully',
+    }
+  } catch (error: any) {
+    console.error(' Error deleting order:', error)
+    return {
+      success: false,
+      message: error.message || 'Failed to delete order',
+    }
+  }
+}
+
+// ========================================================
+// EXPORT: Check if user can create order (for UI)
+// ========================================================
+export { canCreateOrder }
