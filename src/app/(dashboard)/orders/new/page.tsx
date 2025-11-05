@@ -1,123 +1,78 @@
-'use client'
+export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { createClient } from '@/lib/supabase/server'
+import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { ArrowLeft, Save, Plus, Trash, Sparkles } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
-import { SmartPasteDialog } from '@/components/customers/SmartPasteDialog'
+import { NewOrderForm } from '@/components/orders/NewOrderForm'
+import { redirect } from 'next/navigation'
 
-export default function NewOrderPage() {
-  const [items, setItems] = useState([{ id: 1, product: '', quantity: 1, price: 0 }])
+export default async function NewOrderPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ customerId?: string }>
+}) {
+  const params = await searchParams
+  const preSelectedCustomerId = params.customerId
 
-  const handleAddItem = () => {
-    setItems([...items, { id: Date.now(), product: '', quantity: 1, price: 0 }])
+  const supabase = await createClient()
+
+  // ✅ Get authenticated user
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    redirect('/login')
   }
 
-  const handleRemoveItem = (id: number) => {
-    setItems(items.filter(item => item.id !== id))
-  }
+  // Fetch customers for selection
+  const { data: customers } = await supabase
+    .from('customers')
+    .select('id, name, phone')
+    .eq('user_id', user.id)
+    .order('name')
+
+  // ✅ Fetch ALL products (not just in_stock) - exclude only out_of_stock
+  const { data: products } = await supabase
+    .from('products')
+    .select('id, name, selling_price, cost_price, stock_status, stock_quantity')
+    .eq('user_id', user.id)
+    .neq('stock_status', 'out_of_stock') // Only exclude out of stock
+    .order('name')
+      console.log("prodicuts------1",products);
+
+  // Alternative: Show ALL products including out of stock
+  // const { data: products } = await supabase
+  //   .from('products')
+  //   .select('id, name, selling_price, cost_price, stock_status, stock_quantity')
+  //   .eq('user_id', user.id)
+  //   .order('name')
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" asChild>
-          <Link href="/orders">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Create New Order</h1>
-          <p className="text-muted-foreground">Select a customer and add products to create an order.</p>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-4">
+            <Button variant="outline" size="icon" asChild>
+              <Link href="/orders">
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+            </Button>
+            <div>
+              <CardTitle className="text-2xl">Create New Order</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Select a customer and add products to create an order
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <form className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Customer Details</CardTitle>
-                <CardDescription>Select an existing customer or add a new one.</CardDescription>
-              </div>
-              <SmartPasteDialog onDataConfirmed={() => {}} />
-            </CardHeader>
-            <CardContent>
-              {/* Customer Selector Component would go here */}
-              <p className="text-center text-muted-foreground py-8 border-2 border-dashed rounded-lg">Customer Selector Component</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Order Items</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {items.map((item, index) => (
-                <div key={item.id} className="flex items-end gap-2">
-                  <div className="flex-1 space-y-2">
-                    <Label>Product</Label>
-                    {/* Product Selector Component would go here */}
-                    <Input placeholder="Search for a product..." />
-                  </div>
-                  <div className="space-y-2 w-20">
-                    <Label>Qty</Label>
-                    <Input type="number" defaultValue={1} />
-                  </div>
-                  <div className="space-y-2 w-32">
-                    <Label>Price</Label>
-                    <Input type="number" placeholder="0.00" />
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(item.id)}>
-                    <Trash className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              ))}
-              <Button variant="outline" size="sm" onClick={handleAddItem}>
-                <Plus className="mr-2 h-4 w-4" /> Add Item
-              </Button>
-            </CardContent>
-          </Card>
-        </form>
-
-        <div className="lg:col-span-1">
-          <Card className="sticky top-20">
-            <CardHeader>
-              <CardTitle>Order Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between text-sm">
-                <span>Subtotal</span>
-                <span>₹1,698</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Shipping</span>
-                <span>₹50</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Discount</span>
-                <span className="text-red-500">-₹100</span>
-              </div>
-              <div className="border-t pt-4">
-                <div className="flex justify-between font-bold text-lg">
-                  <span>Total</span>
-                  <span>₹1,648</span>
-                </div>
-                <div className="flex justify-between text-sm text-green-600 font-medium">
-                  <span>Profit</span>
-                  <span>₹848</span>
-                </div>
-              </div>
-              <Button size="lg" className="w-full mt-4">
-                <Save className="mr-2 h-4 w-4" />
-                Create Order
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <NewOrderForm
+        customers={customers || []}
+        products={products || []}
+        preSelectedCustomerId={preSelectedCustomerId}
+      />
     </div>
   )
 }

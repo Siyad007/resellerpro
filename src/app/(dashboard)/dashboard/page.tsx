@@ -1,7 +1,6 @@
 import { Suspense } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   TrendingUp,
@@ -16,20 +15,36 @@ import {
   CheckCircle2,
 } from 'lucide-react'
 import Link from 'next/link'
-import BreadcrumbNav from '@/components/layout/BreadcrumbNav'
+import { RevenueChart } from '@/components/dashboard/RevenueChart'
+// import { TopProductsCard } from '@/components/dashboard/TopProductsCard'
+import {
+  getDashboardStats,
+  getRevenueChartData,
+  getRecentOrders,
+  getDashboardAlerts,
+} from './action'
+import { TopProductsCard } from '@/components/dashboard/TopProducts'
 
 export const metadata = {
   title: 'Dashboard - ResellerPro',
   description: 'Your business overview',
 }
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  // Fetch all data in parallel for better performance
+  const [stats, revenueData, recentOrders, alerts] = await Promise.all([
+    getDashboardStats(),
+    getRevenueChartData(),
+    getRecentOrders(),
+    getDashboardAlerts(),
+  ])
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-3xl font-bold tracking-tight mb-2">Dashboard</h1>
+        <p className="text-muted-foreground text-[13px] sm:text-[15px]">
           Welcome back! Here's what's happening with your business today.
         </p>
       </div>
@@ -38,30 +53,30 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title="Today's Revenue"
-          value="₹12,450"
-          change="+23%"
-          trend="up"
+          value={`₹${stats?.todayRevenue.toLocaleString('en-IN') || 0}`}
+          change={`${stats?.revenueChange && stats.revenueChange > 0 ? '+' : ''}${stats?.revenueChange || 0}%`}
+          trend={stats?.revenueChange && stats.revenueChange >= 0 ? 'up' : 'down'}
           icon={DollarSign}
         />
         <StatsCard
           title="Today's Profit"
-          value="₹7,890"
-          change="+18%"
-          trend="up"
+          value={`₹${stats?.todayProfit.toLocaleString('en-IN') || 0}`}
+          change={`${stats?.profitChange && stats.profitChange > 0 ? '+' : ''}${stats?.profitChange || 0}%`}
+          trend={stats?.profitChange && stats.profitChange >= 0 ? 'up' : 'down'}
           icon={TrendingUp}
         />
         <StatsCard
           title="Orders"
-          value="8"
-          change="+3"
-          trend="up"
+          value={stats?.todayOrders.toString() || '0'}
+          change={`${stats?.ordersChange && stats.ordersChange > 0 ? '+' : ''}${stats?.ordersChange || 0}`}
+          trend={stats?.ordersChange && stats.ordersChange >= 0 ? 'up' : 'down'}
           icon={ShoppingCart}
         />
         <StatsCard
           title="Customers"
-          value="156"
-          change="+12"
-          trend="up"
+          value={stats?.totalCustomers.toString() || '0'}
+          change={`${stats?.customersChange && stats.customersChange > 0 ? '+' : ''}${stats?.customersChange || 0}`}
+          trend={stats?.customersChange && stats.customersChange >= 0 ? 'up' : 'down'}
           icon={Users}
         />
       </div>
@@ -69,17 +84,15 @@ export default function DashboardPage() {
       {/* Main Grid */}
       <div className="grid gap-4 lg:grid-cols-7">
         {/* Revenue Chart */}
-        <Card className="lg:col-span-4">
+        <Card className="lg:col-span-4 h-full">
           <CardHeader>
             <CardTitle>Revenue Overview</CardTitle>
             <CardDescription>Your revenue for the last 7 days</CardDescription>
           </CardHeader>
-          <CardContent className="pl-2">
-            <div className="h-80 flex items-center justify-center border-2 border-dashed rounded-lg">
-              <div className="text-center text-muted-foreground">
-                <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Chart will be rendered here</p>
-                <p className="text-sm">(Using Recharts library)</p>
+          <CardContent className="h-full">
+            <div className="flex items-start justify-start w-full h-full rounded-lg">
+              <div className="text-muted-foreground w-full h-full">
+                <RevenueChart data={revenueData} />
               </div>
             </div>
           </CardContent>
@@ -92,43 +105,26 @@ export default function DashboardPage() {
             <CardDescription>Latest 5 orders from customers</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <RecentOrderItem
-                customer="Rahul Sharma"
-                amount="₹1,299"
-                product="Wireless Earbuds"
-                time="10 mins ago"
-                status="pending"
-              />
-              <RecentOrderItem
-                customer="Priya Singh"
-                amount="₹2,997"
-                product="Phone Case × 3"
-                time="1 hour ago"
-                status="delivered"
-              />
-              <RecentOrderItem
-                customer="Amit Kumar"
-                amount="₹899"
-                product="LED Strip"
-                time="2 hours ago"
-                status="shipped"
-              />
-              <RecentOrderItem
-                customer="Sneha Patel"
-                amount="₹3,499"
-                product="Power Bank"
-                time="3 hours ago"
-                status="delivered"
-              />
-              <RecentOrderItem
-                customer="Karan Mehta"
-                amount="₹599"
-                product="Phone Ring"
-                time="5 hours ago"
-                status="pending"
-              />
-            </div>
+            {recentOrders.length > 0 ? (
+              <div className="space-y-4">
+                {recentOrders.map((order) => (
+                  <RecentOrderItem
+                    key={order.id}
+                    customer={order.customer}
+                    amount={`₹${order.amount.toLocaleString('en-IN')}`}
+                    product={order.product}
+                    time={order.time}
+                    status={order.status}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <ShoppingCart className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>No orders yet</p>
+                <p className="text-sm">Create your first order to get started</p>
+              </div>
+            )}
             <Button variant="ghost" className="w-full mt-4" asChild>
               <Link href="/orders">
                 View All Orders
@@ -176,21 +172,29 @@ export default function DashboardPage() {
             <CardDescription>Important updates for your business</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <AlertItem
-              type="warning"
-              message="5 orders pending - need your attention"
-              action="View Orders"
-              href="/orders?status=pending"
-            />
-            <AlertItem
-              type="info"
-              message="3 products running low on stock"
-              action="Manage Stock"
-              href="/products"
-            />
+            {alerts.pendingOrders > 0 && (
+              <AlertItem
+                type="warning"
+                message={`${alerts.pendingOrders} order${alerts.pendingOrders > 1 ? 's' : ''} pending - need your attention`}
+                action="View Orders"
+                href="/orders?status=pending"
+              />
+            )}
+            {alerts.lowStockProducts > 0 && (
+              <AlertItem
+                type="info"
+                message={`${alerts.lowStockProducts} product${alerts.lowStockProducts > 1 ? 's' : ''} running low on stock`}
+                action="Manage Stock"
+                href="/products"
+              />
+            )}
             <AlertItem
               type="success"
-              message="You're on track to hit ₹50,000 this month!"
+              message={
+                alerts.monthlyRevenue >= alerts.monthlyTarget
+                  ? `Congratulations! You've hit your ₹${alerts.monthlyTarget.toLocaleString('en-IN')} target!`
+                  : `You're on track to hit ₹${alerts.monthlyTarget.toLocaleString('en-IN')} this month!`
+              }
               action="View Analytics"
               href="/analytics"
             />
@@ -198,46 +202,36 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Top Products */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Top Selling Products</CardTitle>
-          <CardDescription>Best performers this month</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <TopProductItem
-              name="Wireless Earbuds"
-              sold={45}
-              revenue="₹58,455"
-              profit="₹31,455"
-              trend="up"
-            />
-            <TopProductItem
-              name="Phone Cases"
-              sold={32}
-              revenue="₹25,568"
-              profit="₹14,368"
-              trend="up"
-            />
-            <TopProductItem
-              name="LED Strip Lights"
-              sold={28}
-              revenue="₹25,172"
-              profit="₹13,972"
-              trend="down"
-            />
-            <TopProductItem
-              name="Power Banks"
-              sold={21}
-              revenue="₹73,479"
-              profit="₹41,979"
-              trend="up"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Top Products - Now as separate component */}
+      <Suspense fallback={<TopProductsSkeleton />}>
+        <TopProductsCard />
+      </Suspense>
     </div>
+  )
+}
+
+// Loading skeleton for top products
+function TopProductsSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Top Selling Products</CardTitle>
+        <CardDescription>Best performers this month</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center gap-4">
+              <Skeleton className="h-12 w-12 rounded-lg" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3 w-48" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -252,7 +246,7 @@ function StatsCard({
   value: string
   change: string
   trend: 'up' | 'down'
-  icon: any
+  icon: React.ComponentType<{ className?: string }>
 }) {
   return (
     <Card>
@@ -289,12 +283,14 @@ function RecentOrderItem({
   amount: string
   product: string
   time: string
-  status: 'pending' | 'shipped' | 'delivered'
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
 }) {
   const statusConfig = {
     pending: { color: 'bg-yellow-500', label: 'Pending' },
-    shipped: { color: 'bg-blue-500', label: 'Shipped' },
+    processing: { color: 'bg-blue-500', label: 'Processing' },
+    shipped: { color: 'bg-purple-500', label: 'Shipped' },
     delivered: { color: 'bg-green-500', label: 'Delivered' },
+    cancelled: { color: 'bg-red-500', label: 'Cancelled' },
   }
 
   return (
@@ -341,43 +337,6 @@ function AlertItem({
         <Button variant="link" size="sm" className="h-auto p-0 mt-1" asChild>
           <Link href={href}>{action}</Link>
         </Button>
-      </div>
-    </div>
-  )
-}
-
-function TopProductItem({
-  name,
-  sold,
-  revenue,
-  profit,
-  trend,
-}: {
-  name: string
-  sold: number
-  revenue: string
-  profit: string
-  trend: 'up' | 'down'
-}) {
-  return (
-    <div className="flex items-center gap-4">
-      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
-        <Package className="h-6 w-6 text-muted-foreground" />
-      </div>
-      <div className="flex-1 space-y-1">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium">{name}</p>
-          {trend === 'up' ? (
-            <TrendingUp className="h-4 w-4 text-green-500" />
-          ) : (
-            <TrendingDown className="h-4 w-4 text-red-500" />
-          )}
-        </div>
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <span>{sold} sold</span>
-          <span>Revenue: {revenue}</span>
-          <span className="text-green-600 font-medium">Profit: {profit}</span>
-        </div>
       </div>
     </div>
   )
