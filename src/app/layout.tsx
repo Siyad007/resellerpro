@@ -38,12 +38,30 @@ export const metadata: Metadata = {
 },
   manifest: '/manifest.json',
   themeColor: '#0f172a',
-  icons: { icon: '/icons/icon-192x192.png', apple: '/icons/icon-192x192.png' },
+  icons: { icon: '/icons/icon-192x192.png', apple: '/icons/icon-512x512.png' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
+    <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              "name": "ResellerPro",
+              "url": "https://resellerpro.in",
+              "logo": "https://resellerpro.in/icons/icon-512x512.png",
+              "sameAs": [
+                "https://www.instagram.com/resellerpro",
+                "https://www.facebook.com/resellerpro"
+              ]
+            }),
+          }}
+        />
+      </head>
       <body className={inter.className}>
         <AppLoader />
         <ThemeProvider
