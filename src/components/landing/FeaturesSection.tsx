@@ -1,5 +1,6 @@
 'use client';
 import { Package, Users, Zap, BarChart3, Shield, TrendingUp, ArrowRight, Sparkles, type LucideProps } from 'lucide-react';
+import Link from 'next/link';
 
 function FeatureCard({ icon: Icon, title, description, index }: { icon: React.ComponentType<LucideProps>; title: string; description: string; index: number }) {
   return (
@@ -115,7 +116,7 @@ export default function FeaturesSection() {
               <p className="text-blue-100">Start your free trial today. No credit card required.</p>
             </div>
             <button className="px-8 py-4 bg-white text-blue-600 rounded-xl hover:bg-gray-50 transition-all font-semibold shadow-lg hover:shadow-xl flex items-center space-x-2 whitespace-nowrap">
-              <span>Get Started Free</span>
+              <span><Link href="/signup">Get Started</Link></span>
               <ArrowRight size={20} />
             </button>
           </div>

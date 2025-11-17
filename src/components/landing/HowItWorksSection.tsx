@@ -2,6 +2,7 @@
 
 import { Copy, Package, MessageSquare, FileText, ArrowRight, Sparkles, CheckCircle } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
+import Link from 'next/link';
 import type { ComponentType } from 'react';
 interface StepCardProps {
   number: number;
@@ -116,7 +117,7 @@ export default function HowItWorksSection() {
   ];
 
   return (
-    <section className="relative py-24 px-4 sm:px-6 lg:px-8 overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white">
+    <section id='workflow' className="relative py-24 px-4 sm:px-6 lg:px-8 overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white">
       {/* Background Effects */}
       <div className="absolute top-1/4 left-0 w-96 h-96 bg-blue-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" />
       <div className="absolute bottom-1/4 right-0 w-96 h-96 bg-cyan-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000" />
@@ -174,7 +175,7 @@ export default function HowItWorksSection() {
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
                 <button className="group px-8 py-4 bg-white text-blue-600 rounded-xl hover:bg-gray-50 transition-all font-semibold shadow-lg hover:shadow-xl flex items-center space-x-2">
-                  <span>Start Free Trial</span>
+                  <span><Link href="/signup">Start Free Trial</Link></span>
                   <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                 </button>
                 <button className="px-8 py-4 bg-transparent text-white rounded-xl hover:bg-white/10 transition-all font-semibold border-2 border-white/30 backdrop-blur-sm">
