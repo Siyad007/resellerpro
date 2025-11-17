@@ -1,4 +1,5 @@
 import { ArrowRight, Package, TrendingUp, Users, CheckCircle } from 'lucide-react';
+import Link from 'next/link';
 
 export default function HeroSection() {
   return (
@@ -30,7 +31,7 @@ export default function HeroSection() {
 
             <div className="flex flex-col sm:flex-row gap-4">
               <button className="group px-8 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all font-semibold shadow-lg hover:shadow-xl flex items-center justify-center space-x-2">
-                <span>Start Free Trial</span>
+                <span><Link href="/signup">Get Started</Link></span>
                 <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
               </button>
               <button className="px-8 py-4 bg-white text-gray-900 rounded-xl hover:bg-gray-50 transition-all font-semibold border-2 border-gray-200 shadow-sm hover:shadow-md">
