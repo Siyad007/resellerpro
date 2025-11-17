@@ -27,11 +27,11 @@ export default function Navbar() {
             <a href="#pricing" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">
               Pricing
             </a>
-            <a href="#testimonials" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">
-              Testimonials
+            <a href="#workflow" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">
+              Workflow
             </a>
             <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium shadow-sm hover:shadow-md">
-              Get Started
+              <Link href="/signup">Get Started</Link>
             </button>
           </div>
 

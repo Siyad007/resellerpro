@@ -33,7 +33,7 @@ export default function Footer() {
             </p>
 
             <button className="group mt-4 inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold shadow-md hover:shadow-xl transition-all">
-              <span>Start Free Trial</span>
+              <span><Link href="/signup">Start Free Trial</Link></span>
               <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
             </button>
           </div>

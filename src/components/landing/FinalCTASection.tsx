@@ -1,6 +1,7 @@
 'use client';
 
 import { ArrowRight, CheckCircle, Rocket, Zap, TrendingUp, Clock } from 'lucide-react';
+import Link from 'next/link';
 
 export default function FinalCTASection() {
   const benefits = [
@@ -40,7 +41,7 @@ export default function FinalCTASection() {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-8">
             <button className="group px-10 py-5 bg-white text-blue-600 rounded-xl hover:bg-gray-50 transition-all font-bold text-lg shadow-2xl hover:shadow-3xl hover:scale-105 flex items-center space-x-3">
-              <span>Start Free Trial Now</span>
+              <span><Link href="/signup">Start Free Trial Now</Link></span>
               <ArrowRight size={24} className="group-hover:translate-x-2 transition-transform" />
             </button>
             <button className="px-10 py-5 bg-transparent text-white rounded-xl hover:bg-white/10 transition-all font-bold text-lg border-2 border-white/30 backdrop-blur-sm hover:border-white/50">
